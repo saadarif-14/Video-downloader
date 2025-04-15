@@ -15,46 +15,76 @@ app = FastAPI()
 class UploadRequest(BaseModel):
     youtube_url: str
 
-
+rapid_key = os.getenv("X-RAPID-API-KEY")
+rapid_host = os.getenv("X-RAPID-API-HOST")
 # def download_small_video(youtube_url, output_folder="/tmp"):
-  
-
-#     if not os.path.exists(output_folder):
-#         os.makedirs(output_folder)
-
-#     ydl_opts = {
-#         'format': 'mp4[height<=360][filesize<=10M]/mp4[height<=360]/best[ext=mp4]',
-#         'outtmpl': f"{output_folder}/%(title)s.%(ext)s",
-#         'noplaylist': True,
-#         'quiet': True,
-#         'no_warnings': True,
-     
-#     }
-
-#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-#         info = ydl.extract_info(youtube_url, download=True)
-#         filename = ydl.prepare_filename(info)
-#         if not filename.endswith(".mp4"):
-#             filename = filename.rsplit(".", 1)[0] + ".mp4"
-
-#     return filename
+def extract_video_id(youtube_url):
+    """
+    Extracts the video ID from various YouTube URL formats.
+    """
+    regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
+    match = re.search(regex, youtube_url)
+    if match:
+        return match.group(1)
+    raise ValueError("Invalid YouTube URL")
 
 def download_small_video(youtube_url, output_folder="/tmp"):
+    video_id = extract_video_id(youtube_url)
+
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    try:
-        yt = YouTube(youtube_url)
-        
-        # Get stream with resolution <= 360p and progressive (audio+video)
-        stream = yt.streams.filter(progressive=True, file_extension='mp4', res="360p").order_by('filesize').first()
-        if not stream:
-            raise Exception("No suitable stream found (<=360p mp4)")
-        
-        filename = stream.download(output_path=output_folder)
-        return filename
-    except Exception as e:
-        raise Exception(f"Video download failed: {str(e)}")
+    # Step 1: API call to get download URL
+    url = f"https://{rapid_host}/dl"
+    querystring = {"id": video_id}
+    headers = {
+        "x-rapidapi-key": rapid_key,
+        "x-rapidapi-host": rapid_host,
+    }
+
+    response = requests.get(url, headers=headers, params=querystring)
+    data = response.json()
+
+    # Step 2: Get first available format with URL
+    formats = data.get("formats", [])
+    if not formats or not formats[0].get("url"):
+        raise Exception("No downloadable video URL found.")
+
+    video_url = formats[0]["url"]
+    file_path = os.path.join(output_folder, f"{video_id}.mp4")
+
+    # Step 3: Download video as binary
+    video_response = requests.get(video_url, stream=True)
+    video_response.raise_for_status()
+
+    with open(file_path, "wb") as f:
+        for chunk in video_response.iter_content(chunk_size=8192):
+            f.write(chunk)
+
+    print(f"✅ Downloaded {os.path.getsize(file_path)} bytes to {file_path}")
+    return file_path
+
+    # if not os.path.exists(output_folder):
+    #     os.makedirs(output_folder)
+
+    # ydl_opts = {
+    #     'format': 'mp4[height<=360][filesize<=10M]/mp4[height<=360]/best[ext=mp4]',
+    #     'outtmpl': f"{output_folder}/%(title)s.%(ext)s",
+    #     'noplaylist': True,
+    #     'quiet': True,
+    #     'no_warnings': True,
+     
+    # }
+
+    # with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    #     info = ydl.extract_info(youtube_url, download=True)
+    #     filename = ydl.prepare_filename(info)
+    #     if not filename.endswith(".mp4"):
+    #         filename = filename.rsplit(".", 1)[0] + ".mp4"
+
+    # return filename
+
+
 
 def get_shotstack_upload_url(api_key):
     headers = {
