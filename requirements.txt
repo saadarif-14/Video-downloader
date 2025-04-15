@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+requests
+yt-dlp
+urllib3
+python-dotenv
