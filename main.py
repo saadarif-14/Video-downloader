@@ -6,6 +6,7 @@ from pytube import YouTube
 import urllib3
 import ssl
 import re
+import yt_dlp
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -21,49 +22,67 @@ class UploadRequest(BaseModel):
     youtube_url: str
 
 
-def extract_video_id(youtube_url):
-    regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
-    match = re.search(regex, youtube_url)
-    if match:
-        return match.group(1)
-    raise ValueError("Invalid YouTube URL")
+# def extract_video_id(youtube_url):
+#     regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
+#     match = re.search(regex, youtube_url)
+#     if match:
+#         return match.group(1)
+#     raise ValueError("Invalid YouTube URL")
 
 
+# def download_small_video(youtube_url, output_folder="/tmp"):
+#     video_id = extract_video_id(youtube_url)
+
+#     if not os.path.exists(output_folder):
+#         os.makedirs(output_folder)
+
+#     url = f"https://{rapid_host}/dl"
+#     querystring = {"id": video_id}
+#     headers = {
+#         "x-rapidapi-key": rapid_key,
+#         "x-rapidapi-host": rapid_host,
+#     }
+
+#     response = requests.get(url, headers=headers, params=querystring)
+#     if response.status_code != 200:
+#         raise Exception("Failed to get download URL from API")
+
+#     data = response.json()
+#     formats = data.get("formats", [])
+#     if not formats or not formats[0].get("url"):
+#         raise Exception("No downloadable video URL found.")
+
+#     video_url = formats[0]["url"]
+#     file_path = os.path.join(output_folder, f"{video_id}.mp4")
+
+#     video_response = requests.get(video_url, stream=True)
+#     video_response.raise_for_status()
+
+#     with open(file_path, "wb") as f:
+#         for chunk in video_response.iter_content(chunk_size=8192):
+#             f.write(chunk)
+
+#     print(f"✅ Downloaded {os.path.getsize(file_path)} bytes to {file_path}")
+#     return file_path
 def download_small_video(youtube_url, output_folder="/tmp"):
-    video_id = extract_video_id(youtube_url)
-
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    url = f"https://{rapid_host}/dl"
-    querystring = {"id": video_id}
-    headers = {
-        "x-rapidapi-key": rapid_key,
-        "x-rapidapi-host": rapid_host,
+    ydl_opts = {
+        'format': 'mp4[height<=360][filesize<=15M]/best[ext=mp4]',
+        'outtmpl': f"{output_folder}/%(id)s.%(ext)s",
+        'noplaylist': True,
+        'quiet': True,
+        'no_warnings': True
     }
 
-    response = requests.get(url, headers=headers, params=querystring)
-    if response.status_code != 200:
-        raise Exception("Failed to get download URL from API")
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(youtube_url, download=True)
+        filename = ydl.prepare_filename(info)
+        if not filename.endswith(".mp4"):
+            filename = filename.rsplit(".", 1)[0] + ".mp4"
 
-    data = response.json()
-    formats = data.get("formats", [])
-    if not formats or not formats[0].get("url"):
-        raise Exception("No downloadable video URL found.")
-
-    video_url = formats[0]["url"]
-    file_path = os.path.join(output_folder, f"{video_id}.mp4")
-
-    video_response = requests.get(video_url, stream=True)
-    video_response.raise_for_status()
-
-    with open(file_path, "wb") as f:
-        for chunk in video_response.iter_content(chunk_size=8192):
-            f.write(chunk)
-
-    print(f"✅ Downloaded {os.path.getsize(file_path)} bytes to {file_path}")
-    return file_path
-
+    return filename
 
 def get_shotstack_upload_url(api_key):
     headers = {
