@@ -4,3 +4,4 @@ venv/
 tmp/cookies.txt
 .env
 
+app/youtube_cookies.txt
