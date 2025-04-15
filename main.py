@@ -39,22 +39,22 @@ def download_small_video(youtube_url, output_folder="/tmp"):
 
     return filename
 
-def download_small_video(youtube_url, output_folder="/tmp"):
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+# def download_small_video(youtube_url, output_folder="/tmp"):
+#     if not os.path.exists(output_folder):
+#         os.makedirs(output_folder)
 
-    try:
-        yt = YouTube(youtube_url)
+#     try:
+#         yt = YouTube(youtube_url)
         
-        # Get stream with resolution <= 360p and progressive (audio+video)
-        stream = yt.streams.filter(progressive=True, file_extension='mp4', res="360p").order_by('filesize').first()
-        if not stream:
-            raise Exception("No suitable stream found (<=360p mp4)")
+#         # Get stream with resolution <= 360p and progressive (audio+video)
+#         stream = yt.streams.filter(progressive=True, file_extension='mp4', res="360p").order_by('filesize').first()
+#         if not stream:
+#             raise Exception("No suitable stream found (<=360p mp4)")
         
-        filename = stream.download(output_path=output_folder)
-        return filename
-    except Exception as e:
-        raise Exception(f"Video download failed: {str(e)}")
+#         filename = stream.download(output_path=output_folder)
+#         return filename
+#     except Exception as e:
+#         raise Exception(f"Video download failed: {str(e)}")
 
 def get_shotstack_upload_url(api_key):
     headers = {
