@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import os
 import requests
-# from pytube import YouTube
+from pytube import YouTube
 import yt_dlp
 import urllib3
 import ssl
@@ -16,45 +16,45 @@ class UploadRequest(BaseModel):
     youtube_url: str
 
 
-def download_small_video(youtube_url, output_folder="/tmp"):
+# def download_small_video(youtube_url, output_folder="/tmp"):
   
 
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
-    ydl_opts = {
-        'format': 'mp4[height<=360][filesize<=10M]/mp4[height<=360]/best[ext=mp4]',
-        'outtmpl': f"{output_folder}/%(title)s.%(ext)s",
-        'noplaylist': True,
-        'quiet': True,
-        'no_warnings': True,
-     
-    }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(youtube_url, download=True)
-        filename = ydl.prepare_filename(info)
-        if not filename.endswith(".mp4"):
-            filename = filename.rsplit(".", 1)[0] + ".mp4"
-
-    return filename
-
-# def download_small_video(youtube_url, output_folder="/tmp"):
 #     if not os.path.exists(output_folder):
 #         os.makedirs(output_folder)
 
-#     try:
-#         yt = YouTube(youtube_url)
+#     ydl_opts = {
+#         'format': 'mp4[height<=360][filesize<=10M]/mp4[height<=360]/best[ext=mp4]',
+#         'outtmpl': f"{output_folder}/%(title)s.%(ext)s",
+#         'noplaylist': True,
+#         'quiet': True,
+#         'no_warnings': True,
+     
+#     }
+
+#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+#         info = ydl.extract_info(youtube_url, download=True)
+#         filename = ydl.prepare_filename(info)
+#         if not filename.endswith(".mp4"):
+#             filename = filename.rsplit(".", 1)[0] + ".mp4"
+
+#     return filename
+
+def download_small_video(youtube_url, output_folder="/tmp"):
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    try:
+        yt = YouTube(youtube_url)
         
-#         # Get stream with resolution <= 360p and progressive (audio+video)
-#         stream = yt.streams.filter(progressive=True, file_extension='mp4', res="360p").order_by('filesize').first()
-#         if not stream:
-#             raise Exception("No suitable stream found (<=360p mp4)")
+        # Get stream with resolution <= 360p and progressive (audio+video)
+        stream = yt.streams.filter(progressive=True, file_extension='mp4', res="360p").order_by('filesize').first()
+        if not stream:
+            raise Exception("No suitable stream found (<=360p mp4)")
         
-#         filename = stream.download(output_path=output_folder)
-#         return filename
-#     except Exception as e:
-#         raise Exception(f"Video download failed: {str(e)}")
+        filename = stream.download(output_path=output_folder)
+        return filename
+    except Exception as e:
+        raise Exception(f"Video download failed: {str(e)}")
 
 def get_shotstack_upload_url(api_key):
     headers = {
