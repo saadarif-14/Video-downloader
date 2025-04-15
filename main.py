@@ -3,8 +3,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import os
 import requests
-from pytube import YouTube
-# import yt_dlp
+# from pytube import YouTube
+import yt_dlp
 import urllib3
 import ssl
 from dotenv import load_dotenv
@@ -16,28 +16,28 @@ class UploadRequest(BaseModel):
     youtube_url: str
 
 
-# def download_small_video(youtube_url, output_folder="/tmp"):
+def download_small_video(youtube_url, output_folder="/tmp"):
   
 
-#     if not os.path.exists(output_folder):
-#         os.makedirs(output_folder)
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
 
-#     ydl_opts = {
-#         'format': 'mp4[height<=360][filesize<=10M]/mp4[height<=360]/best[ext=mp4]',
-#         'outtmpl': f"{output_folder}/%(title)s.%(ext)s",
-#         'noplaylist': True,
-#         'quiet': True,
-#         'no_warnings': True,
+    ydl_opts = {
+        'format': 'mp4[height<=360][filesize<=10M]/mp4[height<=360]/best[ext=mp4]',
+        'outtmpl': f"{output_folder}/%(title)s.%(ext)s",
+        'noplaylist': True,
+        'quiet': True,
+        'no_warnings': True,
      
-#     }
+    }
 
-#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-#         info = ydl.extract_info(youtube_url, download=True)
-#         filename = ydl.prepare_filename(info)
-#         if not filename.endswith(".mp4"):
-#             filename = filename.rsplit(".", 1)[0] + ".mp4"
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(youtube_url, download=True)
+        filename = ydl.prepare_filename(info)
+        if not filename.endswith(".mp4"):
+            filename = filename.rsplit(".", 1)[0] + ".mp4"
 
-#     return filename
+    return filename
 
 def download_small_video(youtube_url, output_folder="/tmp"):
     if not os.path.exists(output_folder):
