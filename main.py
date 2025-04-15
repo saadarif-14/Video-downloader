@@ -1,32 +1,33 @@
-
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import os
 import requests
 from pytube import YouTube
-import yt_dlp
 import urllib3
 import ssl
+import re
 from dotenv import load_dotenv
+
+# Load environment variables
 load_dotenv()
+rapid_key = os.getenv("X_RAPID_API_KEY")
+rapid_host = os.getenv("X_RAPID_API_HOST")
+shotstack_api_key = os.getenv("SHOTSTACK_API_KEY")
 
 app = FastAPI()
 
+# Request schema
 class UploadRequest(BaseModel):
     youtube_url: str
 
-rapid_key = os.getenv("X_RAPID_API_KEY")
-rapid_host = os.getenv("X_RAPID_API_HOST")
-# def download_small_video(youtube_url, output_folder="/tmp"):
+
 def extract_video_id(youtube_url):
-    """
-    Extracts the video ID from various YouTube URL formats.
-    """
     regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
     match = re.search(regex, youtube_url)
     if match:
         return match.group(1)
     raise ValueError("Invalid YouTube URL")
+
 
 def download_small_video(youtube_url, output_folder="/tmp"):
     video_id = extract_video_id(youtube_url)
@@ -34,7 +35,6 @@ def download_small_video(youtube_url, output_folder="/tmp"):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    # Step 1: API call to get download URL
     url = f"https://{rapid_host}/dl"
     querystring = {"id": video_id}
     headers = {
@@ -43,9 +43,10 @@ def download_small_video(youtube_url, output_folder="/tmp"):
     }
 
     response = requests.get(url, headers=headers, params=querystring)
-    data = response.json()
+    if response.status_code != 200:
+        raise Exception("Failed to get download URL from API")
 
-    # Step 2: Get first available format with URL
+    data = response.json()
     formats = data.get("formats", [])
     if not formats or not formats[0].get("url"):
         raise Exception("No downloadable video URL found.")
@@ -53,7 +54,6 @@ def download_small_video(youtube_url, output_folder="/tmp"):
     video_url = formats[0]["url"]
     file_path = os.path.join(output_folder, f"{video_id}.mp4")
 
-    # Step 3: Download video as binary
     video_response = requests.get(video_url, stream=True)
     video_response.raise_for_status()
 
@@ -64,27 +64,6 @@ def download_small_video(youtube_url, output_folder="/tmp"):
     print(f"✅ Downloaded {os.path.getsize(file_path)} bytes to {file_path}")
     return file_path
 
-    # if not os.path.exists(output_folder):
-    #     os.makedirs(output_folder)
-
-    # ydl_opts = {
-    #     'format': 'mp4[height<=360][filesize<=10M]/mp4[height<=360]/best[ext=mp4]',
-    #     'outtmpl': f"{output_folder}/%(title)s.%(ext)s",
-    #     'noplaylist': True,
-    #     'quiet': True,
-    #     'no_warnings': True,
-     
-    # }
-
-    # with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-    #     info = ydl.extract_info(youtube_url, download=True)
-    #     filename = ydl.prepare_filename(info)
-    #     if not filename.endswith(".mp4"):
-    #         filename = filename.rsplit(".", 1)[0] + ".mp4"
-
-    # return filename
-
-
 
 def get_shotstack_upload_url(api_key):
     headers = {
@@ -93,13 +72,20 @@ def get_shotstack_upload_url(api_key):
     }
 
     res = requests.post("https://api.shotstack.io/ingest/stage/upload", headers=headers)
-    data = res.json()
+    if res.status_code != 200:
+        raise Exception("Failed to get Shotstack upload URL")
 
+    data = res.json()
     upload_url = data.get("data", {}).get("attributes", {}).get("url")
     asset_id = data.get("data", {}).get("id")
+
+    if not upload_url or not asset_id:
+        raise Exception("Incomplete response from Shotstack")
+
     return upload_url, asset_id
 
-def upload_video(upload_url, path, SHOTSTACK_API_KEY):
+
+def upload_video(upload_url, path, api_key):
     ssl_context = ssl.create_default_context()
     http = urllib3.PoolManager(ssl_context=ssl_context)
 
@@ -109,28 +95,27 @@ def upload_video(upload_url, path, SHOTSTACK_API_KEY):
     response = http.request(
         "PUT", upload_url,
         body=video_bytes,
-        headers={"x-api-key": SHOTSTACK_API_KEY}
+        headers={"x-api-key": api_key}
     )
 
     if response.status != 200:
         raise Exception("Upload failed")
     return True
 
-@app.post("/upload")
-def upload_video_handler(payload: UploadRequest):
-    api_key = os.getenv("SHOTSTACK_API_KEY")
 
-    if not api_key:
-        return {"success": False, "error": "Missing SHOTSTACK_API_KEY in environment"}
+@app.post("/upload")
+def upload_handler(request: UploadRequest):
+    if not shotstack_api_key:
+        raise HTTPException(status_code=500, detail="Missing SHOTSTACK_API_KEY in environment")
 
     try:
-        video_path = download_small_video(payload.youtube_url)
-        upload_url, asset_id = get_shotstack_upload_url(api_key)
-        upload_video(upload_url, video_path, api_key)
+        video_path = download_small_video(request.youtube_url)
+        upload_url, asset_id = get_shotstack_upload_url(shotstack_api_key)
+        upload_video(upload_url, video_path, shotstack_api_key)
         os.remove(video_path)
         return {"success": True, "asset_id": asset_id}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 # if __name__ == "__main__":
 #     import uvicorn
