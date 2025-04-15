@@ -15,8 +15,8 @@ app = FastAPI()
 class UploadRequest(BaseModel):
     youtube_url: str
 
-rapid_key = os.getenv("X-RAPID-API-KEY")
-rapid_host = os.getenv("X-RAPID-API-HOST")
+rapid_key = os.getenv("X_RAPID_API_KEY")
+rapid_host = os.getenv("X_RAPID_API_HOST")
 # def download_small_video(youtube_url, output_folder="/tmp"):
 def extract_video_id(youtube_url):
     """
