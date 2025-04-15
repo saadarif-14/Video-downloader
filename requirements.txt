@@ -5,3 +5,4 @@ yt-dlp
 urllib3
 python-dotenv
 pytube
+yt-dlp browser-cookie3

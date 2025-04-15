@@ -73,7 +73,8 @@ def download_small_video(youtube_url, output_folder="/tmp"):
         'outtmpl': f"{output_folder}/%(id)s.%(ext)s",
         'noplaylist': True,
         'quiet': True,
-        'no_warnings': True
+        'no_warnings': True,
+        'cookiefile': '/app/youtube_cookies.txt',
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
