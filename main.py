@@ -49,10 +49,10 @@ async def download_video(video_url: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
-public_url = ngrok.connect(8000)
+public_url = ngrok.connect(80)
 print(f"Public URL: {public_url}")
 
-uvicorn.run(app, host="0.0.0.0", port=8000)
+uvicorn.run(app, host="0.0.0.0", port=80)
 # import os
 # import yt_dlp
 # import urllib3
