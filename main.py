@@ -2,11 +2,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import os
 import requests
-# from pytube import YouTube
 import urllib3
 import ssl
 import re
-# import yt_dlp
 from dotenv import load_dotenv
 
 # Load environment variables
