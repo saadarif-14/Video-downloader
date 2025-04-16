@@ -1,95 +1,90 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+
+# import os
+# import yt_dlp
+# from fastapi import FastAPI, HTTPException
+# from fastapi.responses import StreamingResponse
+# from pyngrok import ngrok
+# import uvicorn
+# from pathlib import Path
+# from dotenv import load_dotenv
+
+# load_dotenv()
+
+# app = FastAPI()
+
+# NGROK_AUTH_TOKEN = os.getenv("NGROK_AUTH_TOKEN")
+# if not NGROK_AUTH_TOKEN:
+#     raise RuntimeError("Missing ngrok auth token. Please set it in .env or environment variable.")
+
+# ngrok.set_auth_token(NGROK_AUTH_TOKEN)
+
+# SAVE_PATH = os.path.join(os.getcwd(), "downloads")
+# os.makedirs(SAVE_PATH, exist_ok=True)
+
+# @app.get("/download_video/")
+# async def download_video(video_url: str):
+#     ydl_opts = {
+#         'format': 'best',
+#         'outtmpl': f'{SAVE_PATH}/%(title)s.%(ext)s',
+#         'noplaylist': True,
+#     }
+
+#     try:
+#         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+#             info_dict = ydl.extract_info(video_url, download=True)
+#             filepath = ydl.prepare_filename(info_dict)
+
+#         def file_stream():
+#             with open(filepath, mode="rb") as f:
+#                 yield from f
+#             os.remove(filepath)
+
+#         filename = Path(filepath).name
+#         return StreamingResponse(file_stream(), media_type="application/octet-stream", headers={
+#             "Content-Disposition": f"attachment; filename={filename}"
+#         })
+
+#     except yt_dlp.utils.DownloadError as e:
+#         raise HTTPException(status_code=400, detail=f"Download error: {str(e)}")
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+
+# public_url = ngrok.connect(8000)
+# print(f"Public URL: {public_url}")
+
+# uvicorn.run(app, host="0.0.0.0", port=8000)
 import os
-import requests
+import yt_dlp
 import urllib3
 import ssl
-import re
+import requests
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+from pyngrok import ngrok
+import uvicorn
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
-rapid_key = os.getenv("X_RAPID_API_KEY")
-rapid_host = os.getenv("X_RAPID_API_HOST")
-shotstack_api_key = os.getenv("SHOTSTACK_API_KEY")
 
 app = FastAPI()
 
-# Request schema
-class UploadRequest(BaseModel):
-    youtube_url: str
+NGROK_AUTH_TOKEN = os.getenv("NGROK_AUTH_TOKEN")
+SHOTSTACK_API_KEY = os.getenv("SHOTSTACK_API_KEY")
 
+if not NGROK_AUTH_TOKEN or not SHOTSTACK_API_KEY:
+    raise RuntimeError("Missing required environment variables.")
 
-def extract_video_id(youtube_url):
-    regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
-    match = re.search(regex, youtube_url)
-    if match:
-        return match.group(1)
-    raise ValueError("Invalid YouTube URL")
+ngrok.set_auth_token(NGROK_AUTH_TOKEN)
 
-
-def download_small_video(youtube_url, output_folder="/tmp"):
-    video_id = extract_video_id(youtube_url)
-
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
-    url = f"https://{rapid_host}/dl"
-    querystring = {"id": video_id}
-    headers = {
-        "x-rapidapi-key": rapid_key,
-        "x-rapidapi-host": rapid_host,
-    }
-
-    response = requests.get(url, headers=headers, params=querystring)
-    if response.status_code != 200:
-        raise Exception("Failed to get download URL from API")
-
-    data = response.json()
-    formats = data.get("formats", [])
-    if not formats or not formats[0].get("url"):
-        raise Exception("No downloadable video URL found.")
-
-    video_url = formats[0]["url"]
-    file_path = os.path.join(output_folder, f"{video_id}.mp4")
-
-    video_response = requests.get(video_url, stream=True)
-    video_response.raise_for_status()
-
-    with open(file_path, "wb") as f:
-        for chunk in video_response.iter_content(chunk_size=8192):
-            f.write(chunk)
-
-    print(f"✅ Downloaded {os.path.getsize(file_path)} bytes to {file_path}")
-    return file_path
-# def download_small_video(youtube_url, output_folder="/tmp"):
-#     if not os.path.exists(output_folder):
-#         os.makedirs(output_folder)
-
-#     ydl_opts = {
-#         'format': 'mp4[height<=360][filesize<=15M]/best[ext=mp4]',
-#         'outtmpl': f"{output_folder}/%(id)s.%(ext)s",
-#         'noplaylist': True,
-#         'quiet': True,
-#         'no_warnings': True,
-
-     
-#     }
-
-#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-#         info = ydl.extract_info(youtube_url, download=True)
-#         filename = ydl.prepare_filename(info)
-#         if not filename.endswith(".mp4"):
-#             filename = filename.rsplit(".", 1)[0] + ".mp4"
-
-#     return filename
+SAVE_PATH = os.path.join(os.getcwd(), "downloads")
+os.makedirs(SAVE_PATH, exist_ok=True)
 
 def get_shotstack_upload_url(api_key):
     headers = {
         "Accept": "application/json",
         "x-api-key": api_key
     }
-
     res = requests.post("https://api.shotstack.io/ingest/stage/upload", headers=headers)
     if res.status_code != 200:
         raise Exception("Failed to get Shotstack upload URL")
@@ -97,14 +92,15 @@ def get_shotstack_upload_url(api_key):
     data = res.json()
     upload_url = data.get("data", {}).get("attributes", {}).get("url")
     asset_id = data.get("data", {}).get("id")
+    if upload_url: 
+        print("Upload URl is get successfully")
 
     if not upload_url or not asset_id:
         raise Exception("Incomplete response from Shotstack")
 
     return upload_url, asset_id
 
-
-def upload_video(upload_url, path, api_key):
+def upload_video(upload_url, path):
     ssl_context = ssl.create_default_context()
     http = urllib3.PoolManager(ssl_context=ssl_context)
 
@@ -114,28 +110,44 @@ def upload_video(upload_url, path, api_key):
     response = http.request(
         "PUT", upload_url,
         body=video_bytes,
-        headers={"x-api-key": api_key}
+        headers={"x-api-key": SHOTSTACK_API_KEY}
     )
 
     if response.status != 200:
+        print("Upload failed:", response.status, response.data.decode())
         raise Exception("Upload failed")
     return True
 
-
-@app.post("/upload")
-def upload_handler(request: UploadRequest):
-    if not shotstack_api_key:
-        raise HTTPException(status_code=500, detail="Missing SHOTSTACK_API_KEY in environment")
+@app.get("/download_video/")
+async def download_video(video_url: str):
+    ydl_opts = {
+        'format': 'best',
+        'outtmpl': f'{SAVE_PATH}/%(title)s.%(ext)s',
+        'noplaylist': True,
+    }
 
     try:
-        video_path = download_small_video(request.youtube_url)
-        upload_url, asset_id = get_shotstack_upload_url(shotstack_api_key)
-        upload_video(upload_url, video_path, shotstack_api_key)
-        os.remove(video_path)
-        return {"success": True, "asset_id": asset_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(video_url, download=True)
+            filepath = ydl.prepare_filename(info_dict)
 
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+        upload_url, asset_id = get_shotstack_upload_url(SHOTSTACK_API_KEY)
+        upload_video(upload_url, filepath)
+
+        os.remove(filepath)
+
+        return {"asset_id": asset_id}
+
+    except yt_dlp.utils.DownloadError as e:
+        raise HTTPException(status_code=400, detail=f"Download error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+
+# public_url = ngrok.connect(8000)
+# print(f"Public URL: {public_url}")
+
+# uvicorn.run(app, host="0.0.0.0", port=8000)
+if __name__ == "__main__":
+    public_url = ngrok.connect(80)
+    print(f"Public URL: {public_url}")
+    uvicorn.run(app, host="0.0.0.0", port=80)

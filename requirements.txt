@@ -6,3 +6,5 @@ urllib3
 python-dotenv
 pytube
 pydantic
+nest_asyncio
+pyngrok
